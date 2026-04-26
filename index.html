@@ -253,6 +253,10 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
           </div>
           <div class="msgs" id="msgs"><div style="padding:30px;text-align:center;font-size:12px;color:var(--light)">Selecione um lead para ver as mensagens.</div></div>
           <div class="chat-inp-row">
+            <input type="file" id="file-in" style="display:none" onchange="sendFile(this.files[0]);this.value=''">
+            <button class="snd" style="background:var(--border);color:var(--mid)" onclick="document.getElementById('file-in').click()" title="Enviar foto/arquivo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
             <input class="chat-inp" id="msg-in" type="text" placeholder="Digite sua mensagem...">
             <button class="snd" onclick="sendMsg()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -339,6 +343,56 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 // ══════════════ CONFIG ══════════════
 const SB_URL = 'https://yhqqebyefqnieptfkohl.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlocXFlYnllZnFuaWVwdGZrb2hsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMTc0ODYsImV4cCI6MjA5Mjc5MzQ4Nn0.CsrEWw_G8aGCqIXJTC57vUWgwCzHKio5OQ3tPUyaG4M';
+
+
+// ══════════════ EVOLUTION API ══════════════
+const EVO_URL = 'https://evolution-api-production-3ffb.up.railway.app';
+const EVO_KEY = '8cf66855caca5a5e03efeae38b2df046296a7636e830838ed6a900724c885252';
+const EVO_INSTANCE = 'imperio-crm';
+
+async function evoSendText(phone, text) {
+  const num = phone.replace(/\D/g, '');
+  const r = await fetch(`${EVO_URL}/message/sendText/${EVO_INSTANCE}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': EVO_KEY },
+    body: JSON.stringify({ number: num, text })
+  });
+  return r.ok;
+}
+
+async function evoSendMedia(phone, file) {
+  const num = phone.replace(/\D/g, '');
+  const b64 = await fileToBase64(file);
+  const isImage = file.type.startsWith('image/');
+  const isVideo = file.type.startsWith('video/');
+  const isAudio = file.type.startsWith('audio/');
+  let mediatype = 'document';
+  if (isImage) mediatype = 'image';
+  if (isVideo) mediatype = 'video';
+  if (isAudio) mediatype = 'audio';
+  const r = await fetch(`${EVO_URL}/message/sendMedia/${EVO_INSTANCE}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': EVO_KEY },
+    body: JSON.stringify({
+      number: num,
+      mediatype,
+      mimetype: file.type,
+      caption: file.name,
+      media: b64,
+      fileName: file.name
+    })
+  });
+  return r.ok;
+}
+
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
 
 // ══════════════ STATE ══════════════
 let SB = null;
@@ -530,11 +584,34 @@ async function sendMsg(){
   if(!txt||!activeId)return;
   const l=gl(activeId);
   const now=new Date(),h=now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+  inp.value='';
+  // Envia pelo WhatsApp via Evolution API
+  if(l.phone){
+    const ok = await evoSendText(l.phone, txt);
+    if(!ok){ toast('Erro ao enviar pelo WhatsApp','err'); return; }
+  }
   const m={direction:'out',content:txt,sent_at:h};
   if(!l.msgs)l.msgs=[];
-  l.msgs.push(m); l.last='agora'; inp.value='';
+  l.msgs.push(m); l.last='agora';
   await dbMsg(l.id,'out',txt,h);
   renderChat();renderClist();
+}
+
+async function sendFile(file){
+  if(!activeId||!file)return;
+  const l=gl(activeId);
+  if(!l.phone){ toast('Lead sem telefone cadastrado','err'); return; }
+  toast('Enviando arquivo...');
+  const ok = await evoSendMedia(l.phone, file);
+  if(!ok){ toast('Erro ao enviar arquivo','err'); return; }
+  const now=new Date(),h=now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+  const tipo = file.type.startsWith('image/')?'🖼️ ':file.type.startsWith('video/')?'🎥 ':file.type.startsWith('audio/')?'🎵 ':'📎 ';
+  const m={direction:'out',content:tipo+file.name,sent_at:h};
+  if(!l.msgs)l.msgs=[];
+  l.msgs.push(m); l.last='agora';
+  await dbMsg(l.id,'out',tipo+file.name,h);
+  renderChat();renderClist();
+  toast('✅ Arquivo enviado!');
 }
 
 function filterBy(btn,f){
@@ -732,31 +809,36 @@ async function disparar(){
   const ov=document.getElementById('send-ov');
   document.getElementById('s-icon').textContent='📤';
   document.getElementById('s-title').textContent='Disparando campanha...';
-  document.getElementById('s-sub').textContent='Enviando para '+cls.length+' contatos...';
+  document.getElementById('s-sub').textContent='Enviando para '+cls.length+' contatos via WhatsApp...';
   document.getElementById('s-fill').style.width='0%';
   document.getElementById('s-count').textContent='0 de '+cls.length+' enviados';
   document.getElementById('done-btn').classList.add('hidden');
   ov.classList.remove('hidden');
-  let sent=0;
-  const iv=setInterval(async()=>{
-    const lead=cls[sent];
+  let sent=0, erros=0;
+  for(const lead of cls){
+    const msg=camp.msg.replace(/\{nome\}/g, lead.name.split(' ')[0]);
     const cl=camp.leads.find(x=>x.lid===lead.id);
-    if(cl){
-      cl.status=Math.random()>.45?'respondeu':'enviado';
-      if(SB) await SB.from('campaign_leads').upsert({campaign_id:camp.id,lead_id:lead.id,status:cl.status});
-    }
+    try{
+      const ok = await evoSendText(lead.phone, msg);
+      if(cl){
+        cl.status = ok ? 'enviado' : 'erro';
+        if(SB) await SB.from('campaign_leads').upsert({campaign_id:camp.id,lead_id:lead.id,status:cl.status});
+        if(ok){
+          const now=new Date(),h=now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+          await dbMsg(lead.id,'out',msg,h);
+        }
+      }
+      if(!ok) erros++;
+    } catch(e){ erros++; }
     sent++;
     document.getElementById('s-fill').style.width=Math.round(sent/cls.length*100)+'%';
-    document.getElementById('s-count').textContent=sent+' de '+cls.length+' enviados';
-    if(sent>=cls.length){
-      clearInterval(iv);
-      const r=camp.leads.filter(cl=>cl.status==='respondeu').length;
-      document.getElementById('s-icon').textContent='✅';
-      document.getElementById('s-title').textContent='Campanha enviada!';
-      document.getElementById('s-sub').textContent=cls.length+' msgs · '+r+' responderam!';
-      document.getElementById('done-btn').classList.remove('hidden');
-    }
-  },600);
+    document.getElementById('s-count').textContent=sent+' de '+cls.length+' enviados'+(erros?' ('+erros+' erros)':'');
+    await new Promise(r=>setTimeout(r,800));
+  }
+  document.getElementById('s-icon').textContent=erros===0?'✅':'⚠️';
+  document.getElementById('s-title').textContent='Campanha enviada!';
+  document.getElementById('s-sub').textContent=cls.length+' msgs disparadas pelo WhatsApp!'+(erros?' · '+erros+' falharam':'');
+  document.getElementById('done-btn').classList.remove('hidden');
 }
 
 function closeSending(){document.getElementById('send-ov').classList.add('hidden');renderCampBody();}
