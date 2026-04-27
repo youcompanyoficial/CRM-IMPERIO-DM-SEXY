@@ -507,9 +507,9 @@ async function dbSave(lead){
   await SB.from('leads').upsert({id:lead.id,name:lead.name,phone:lead.phone,temp:lead.temp,tags:lead.tags,note:lead.note,last_seen:lead.last});
 }
 
-async function dbMsg(lid,direction,content,sent_at){
+async function dbMsg(lid,direction,content,sent_at,media_url=null,media_type=null){
   if(!SB)return;
-  await SB.from('messages').insert({lead_id:lid,direction,content,sent_at});
+  await SB.from('messages').insert({lead_id:lid,direction,content,sent_at,media_url,media_type});
 }
 
 // ══════════════ INBOX ══════════════
@@ -550,7 +550,36 @@ function renderChat(){
   const ms=l.msgs||[];
   a.innerHTML=ms.length===0
     ?'<div style="padding:30px;text-align:center;font-size:12px;color:var(--light)">Nenhuma mensagem ainda.</div>'
-    :ms.map(m=>`<div class="mw ${m.direction}"><div class="msg ${m.direction}">${m.content}</div><div class="mt">${m.sent_at||''}</div></div>`).join('');
+    :ms.map(m=>{
+      let bubble = '';
+      if(m.media_type==='image' && m.media_url){
+        bubble = `<div class="msg ${m.direction}" style="padding:4px">
+          <img src="${m.media_url}" style="max-width:200px;max-height:200px;border-radius:10px;display:block;cursor:pointer" onclick="window.open('${m.media_url}','_blank')" onerror="this.style.display='none'">
+          ${m.content && m.content!=='🖼️ Imagem'?`<div style="font-size:11px;margin-top:4px">${m.content}</div>`:''}
+        </div>`;
+      } else if(m.media_type==='video' && m.media_url){
+        bubble = `<div class="msg ${m.direction}" style="padding:4px">
+          <video controls style="max-width:200px;border-radius:10px;display:block">
+            <source src="${m.media_url}">
+          </video>
+          ${m.content && m.content!=='🎥 Vídeo'?`<div style="font-size:11px;margin-top:4px">${m.content}</div>`:''}
+        </div>`;
+      } else if(m.media_type==='audio' && m.media_url){
+        bubble = `<div class="msg ${m.direction}">
+          <audio controls style="max-width:180px;height:32px"><source src="${m.media_url}"></audio>
+        </div>`;
+      } else if(m.media_type==='document' && m.media_url){
+        bubble = `<div class="msg ${m.direction}">
+          <a href="${m.media_url}" target="_blank" style="color:inherit;text-decoration:none;display:flex;align-items:center;gap:6px">
+            <span style="font-size:18px">📎</span>
+            <span style="font-size:11px;text-decoration:underline">${m.content.replace('📎 ','')}</span>
+          </a>
+        </div>`;
+      } else {
+        bubble = `<div class="msg ${m.direction}">${m.content}</div>`;
+      }
+      return `<div class="mw ${m.direction}">${bubble}<div class="mt">${m.sent_at||''}</div></div>`;
+    }).join('');
   a.scrollTop=a.scrollHeight;
 }
 
@@ -605,11 +634,14 @@ async function sendFile(file){
   const ok = await evoSendMedia(l.phone, file);
   if(!ok){ toast('Erro ao enviar arquivo','err'); return; }
   const now=new Date(),h=now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
-  const tipo = file.type.startsWith('image/')?'🖼️ ':file.type.startsWith('video/')?'🎥 ':file.type.startsWith('audio/')?'🎵 ':'📎 ';
-  const m={direction:'out',content:tipo+file.name,sent_at:h};
+  const isImg=file.type.startsWith('image/'),isVid=file.type.startsWith('video/'),isAud=file.type.startsWith('audio/');
+  const mtype=isImg?'image':isVid?'video':isAud?'audio':'document';
+  const tipo=isImg?'🖼️ ':isVid?'🎥 ':isAud?'🎵 ':'📎 ';
+  const localUrl=URL.createObjectURL(file);
+  const m={direction:'out',content:tipo+file.name,sent_at:h,media_url:localUrl,media_type:mtype};
   if(!l.msgs)l.msgs=[];
   l.msgs.push(m); l.last='agora';
-  await dbMsg(l.id,'out',tipo+file.name,h);
+  await dbMsg(l.id,'out',tipo+file.name,h,null,mtype);
   renderChat();renderClist();
   toast('✅ Arquivo enviado!');
 }
@@ -875,7 +907,7 @@ function startRealtime(){
         // Evita duplicar mensagens que o proprio CRM enviou
         const jaExiste = lead.msgs.some(m => m.content===msg.content && m.sent_at===msg.sent_at);
         if(!jaExiste){
-          lead.msgs.push({ direction:msg.direction, content:msg.content, sent_at:msg.sent_at });
+          lead.msgs.push({ direction:msg.direction, content:msg.content, sent_at:msg.sent_at, media_url:msg.media_url||null, media_type:msg.media_type||null });
           lead.last = 'agora';
           if(msg.lead_id === activeId){ renderChat(); }
           else { showNotif(lead); }
