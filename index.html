@@ -500,14 +500,21 @@ function horaAgora(){
 // Tempo relativo (ex: "há 2min", "há 1h", "há 3 dias")
 function tempoRelativo(ts){
   if(!ts) return 'agora';
-  const diff = Date.now() - new Date(ts).getTime();
-  const min = Math.floor(diff/60000);
-  if(min < 1) return 'agora';
-  if(min < 60) return 'há '+min+'min';
-  const h = Math.floor(min/60);
-  if(h < 24) return 'há '+h+'h';
-  const d = Math.floor(h/24);
-  return 'há '+d+' dia'+(d>1?'s':'');
+  // Se for timestamp ISO válido
+  const d = new Date(ts);
+  if(!isNaN(d.getTime())){
+    const diff = Date.now() - d.getTime();
+    const min = Math.floor(diff/60000);
+    if(min < 1) return 'agora';
+    if(min < 60) return 'há '+min+'min';
+    const h = Math.floor(min/60);
+    if(h < 24) return 'há '+h+'h';
+    const days = Math.floor(h/24);
+    return 'há '+days+' dia'+(days>1?'s':'');
+  }
+  // Se for string de hora (ex: "20:21") — mostra direto
+  if(/^\d{1,2}:\d{2}$/.test(String(ts))) return String(ts);
+  return 'agora';
 }
 let inboxFilter = 'todos';
 let searchTerm = '';
@@ -567,16 +574,37 @@ async function initDB(){
 }
 
 async function loadLeads(){
-  const res1 = await SB.from('leads').select('*').order('created_at',{ascending:false});
+  const res1 = await SB.from('leads').select('*').order('updated_at',{ascending:false,nullsFirst:false});
   if(res1.error) throw new Error(res1.error.message || 'Erro ao carregar leads');
   const leads = res1.data;
   const res2 = await SB.from('messages').select('*').order('created_at',{ascending:true});
   const msgs = res2.data || [];
-  LEADS = leads.map(l=>({
-    id:l.id, name:l.name, phone:l.phone||'', temp:l.temp||'frio',
-    tags:Array.isArray(l.tags)?l.tags:[], note:l.note||'', last:l.last_seen||'agora',
-    msgs: msgs.filter(m=>m.lead_id===l.id)
-  }));
+
+  LEADS = leads.map(l=>{
+    const lMsgs = msgs
+      .filter(m=>m.lead_id===l.id)
+      .map(m=>({
+        direction: m.direction,
+        content: m.content,
+        sent_at: m.sent_at,
+        media_url: m.media_url||null,
+        media_type: m.media_type||null,
+        created_at: m.created_at||null
+      }));
+    const lastMsg = lMsgs.length ? lMsgs[lMsgs.length-1] : null;
+    return {
+      id: l.id,
+      name: l.name,
+      phone: l.phone||'',
+      temp: l.temp||'frio',
+      tags: Array.isArray(l.tags)?l.tags:[],
+      note: l.note||'',
+      last: l.last_seen||'agora',
+      last_msg_at: lastMsg?.created_at || l.updated_at || l.created_at || null,
+      msgs: lMsgs
+    };
+  });
+
   if(LEADS.length>0) activeId=LEADS[0].id;
   renderClist(); renderChat(); renderInfo();
 }
@@ -595,7 +623,7 @@ async function loadCamps(){
 
 function loadDemo(){
   LEADS=[
-    {id:'d1',name:'Rafael Mendes',phone:'+55 62 99999-0001',temp:'morno',tags:['follow-up'],note:'Interessado no plano mensal.',last:'há 1h',msgs:[{direction:'in',content:'Oi, gostaria de saber mais!',sent_at:'14:30'},{direction:'out',content:'Olá! Posso te mostrar uma demo?',sent_at:'14:32'}]},
+    {id:'d1',name:'Rafael Mendes',phone:'+55 62 99999-0001',temp:'morno',tags:['follow-up'],note:'Interessado no plano mensal.',last:'há 1h',last_msg_at:new Date(Date.now()-3600000).toISOString(),msgs:[{direction:'in',content:'Oi, gostaria de saber mais!',sent_at:'14:30'},{direction:'out',content:'Olá! Posso te mostrar uma demo?',sent_at:'14:32'}]},
     {id:'d2',name:'Carla Souza',phone:'+55 62 98888-0002',temp:'quente',tags:['pronto p/ comprar'],note:'Quer fechar essa semana.',last:'há 30min',msgs:[{direction:'in',content:'Qual o preço do plano anual?',sent_at:'13:10'}]},
     {id:'d3',name:'Bruno Lima',phone:'+55 62 97777-0003',temp:'frio',tags:['indicação'],note:'Sem urgência.',last:'há 2 dias',msgs:[{direction:'in',content:'Fui indicado por um amigo.',sent_at:'09:00'}]},
     {id:'d4',name:'Simone Barros',phone:'+55 62 96666-0004',temp:'cliente',tags:['cliente'],note:'Cliente desde março.',last:'há 3h',msgs:[{direction:'out',content:'Oi Simone! Tudo bem?',sent_at:'11:00'},{direction:'in',content:'Tudo ótimo! Já organizei 50+ leads.',sent_at:'11:10'}]},
@@ -609,7 +637,7 @@ function loadDemo(){
 
 async function dbSave(lead){
   if(!SB)return;
-  await SB.from('leads').upsert({id:lead.id,name:lead.name,phone:lead.phone,temp:lead.temp,tags:lead.tags,note:lead.note,last_seen:lead.last});
+  await SB.from('leads').upsert({id:lead.id,name:lead.name,phone:lead.phone,temp:lead.temp,tags:lead.tags,note:lead.note,last_seen:lead.last,updated_at:new Date().toISOString()});
 }
 
 async function dbMsg(lid,direction,content,sent_at,media_url=null,media_type=null){
@@ -636,7 +664,7 @@ function renderClist(){
     : list.map(l=>{
         const last=l.msgs&&l.msgs.length?l.msgs[l.msgs.length-1]:null;
         const hasUnread = unreadIds.has(l.id) && l.id !== activeId;
-        const timeLabel = tempoRelativo(l.last_msg_at);
+        const timeLabel = l.last_msg_at ? tempoRelativo(l.last_msg_at) : (l.last_sent_at_label || l.last || 'agora');
         return `<div class="ci${l.id===activeId?' on':''}" onclick="selectLead('${l.id}')">
           <div class="ci-r1"><span class="ci-name" style="${hasUnread?'font-weight:800;color:var(--txt)':''}">${l.name}</span><span class="ci-time">${timeLabel}</span></div>
           <div class="ci-r2">
@@ -1021,6 +1049,7 @@ function startRealtime(){
         if(!jaExiste){
           lead.msgs.push({ direction:msg.direction, content:msg.content, sent_at:msg.sent_at, media_url:msg.media_url||null, media_type:msg.media_type||null });
           lead.last_msg_at = msg.created_at || new Date().toISOString();
+          lead.last_sent_at_label = msg.sent_at || horaAgora();
           // Sobe lead pro topo da lista
           const idx = LEADS.indexOf(lead);
           if(idx > 0){ LEADS.splice(idx,1); LEADS.unshift(lead); }
