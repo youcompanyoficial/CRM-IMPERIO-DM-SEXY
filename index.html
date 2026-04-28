@@ -105,6 +105,8 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 
 /* LEADS */
 .leads-view{width:100%;padding:16px;overflow-y:auto;background:var(--bg);}
+#view-vendas{padding:0;overflow:hidden;display:flex;flex-direction:column;height:100%;}
+#view-vendas.hidden{display:none!important;}
 .leads-title{font-size:15px;font-weight:800;color:var(--txt);}
 .leads-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px;}
 .tc{background:var(--card);border-radius:16px;padding:11px;border:1px solid var(--border);}
@@ -210,6 +212,10 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       <span class="lbl">Campanhas</span>
     </button>
+    <button class="nb" id="nb-vendas" onclick="showView('vendas')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <span class="lbl">Vendas</span>
+    </button>
     <div class="sb-sp"></div>
     <div class="u-av">Eu</div>
   </div>
@@ -290,6 +296,66 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
         </div>
       </div>
 
+      <!-- VENDAS -->
+      <div id="view-vendas" class="leads-view hidden" style="flex-direction:column;gap:0;padding:0;overflow:hidden;display:flex;height:100%">
+
+        <!-- HEADER STATS -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--light);letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px">Vendas</div>
+              <div style="font-size:20px;font-weight:800;color:var(--green)" id="v-total-qtd">0</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--light);letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px">Total</div>
+              <div style="font-size:20px;font-weight:800;color:var(--purple)" id="v-total-val">R$ 0</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--light);letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px">Ticket Médio</div>
+              <div style="font-size:20px;font-weight:800;color:var(--txt)" id="v-ticket">R$ 0</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn-p" onclick="exportarVendasCSV()" style="height:32px;padding:0 14px;font-size:11px;background:var(--green);background:linear-gradient(135deg,#10B981,#34D399)">⬇ CSV</button>
+            <button class="btn-p" onclick="abrirModalVenda()" style="height:32px;padding:0 14px;font-size:11px">+ Nova Venda</button>
+          </div>
+        </div>
+
+        <!-- MES TABS -->
+        <div style="display:flex;gap:6px;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto" id="v-mes-tabs"></div>
+
+        <!-- TABELA -->
+        <div style="flex:1;overflow-y:auto;padding:16px;min-height:0">
+          <div style="background:var(--card);border-radius:16px;border:1px solid var(--border);overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)">
+              <span style="font-size:12px;font-weight:800;color:var(--mid)" id="v-tabela-titulo">Todos os registros</span>
+              <input class="sbx" type="text" placeholder="Buscar..." oninput="filtrarVendas(this.value)" style="width:160px">
+            </div>
+            <div style="overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead>
+                  <tr style="background:var(--bg)">
+                    <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--light);letter-spacing:.8px;text-transform:uppercase;white-space:nowrap">#</th>
+                    <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--light);letter-spacing:.8px;text-transform:uppercase;white-space:nowrap">Número</th>
+                    <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--light);letter-spacing:.8px;text-transform:uppercase;white-space:nowrap">Nome</th>
+                    <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--light);letter-spacing:.8px;text-transform:uppercase;white-space:nowrap">Valor</th>
+                    <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--light);letter-spacing:.8px;text-transform:uppercase;white-space:nowrap">Anúncio</th>
+                    <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--light);letter-spacing:.8px;text-transform:uppercase;white-space:nowrap">Data</th>
+                    <th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--light);letter-spacing:.8px;text-transform:uppercase;white-space:nowrap">Mês</th>
+                    <th style="padding:10px 14px"></th>
+                  </tr>
+                </thead>
+                <tbody id="v-tbody"></tbody>
+              </table>
+              <div id="v-empty" style="text-align:center;padding:40px;color:var(--light);font-size:12px">
+                <div style="font-size:32px;margin-bottom:8px">📊</div>
+                Nenhuma venda registrada ainda.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -308,6 +374,26 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
     <div class="m-actions">
       <button class="m-cancel" onclick="closeModal('new-lead')">Cancelar</button>
       <button class="m-confirm" onclick="createLead()">Salvar lead</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL NOVA VENDA -->
+<div class="overlay hidden" id="modal-nova-venda">
+  <div class="modal" style="width:420px">
+    <div class="modal-title">💰 Nova Venda</div>
+    <div class="fg"><label>Número / WhatsApp</label><input id="v-numero" placeholder="+55 62 99999-0000"></div>
+    <div class="fg"><label>Nome do cliente</label><input id="v-nome" placeholder="Nome completo"></div>
+    <div class="fg"><label>Anúncio</label><input id="v-anuncio" placeholder="Nome do anúncio"></div>
+    <div class="fg"><label>Valor da venda (R$)</label><input id="v-valor" placeholder="0,00"></div>
+    <div class="fg"><label>Data da venda</label><input type="date" id="v-data"></div>
+    <div class="fg"><label>Mês</label>
+      <select id="v-mes-sel"></select>
+    </div>
+    <div class="m-actions">
+      <button class="m-cancel" onclick="closeModal('nova-venda')">Cancelar</button>
+      <button class="m-confirm" onclick="salvarVenda()">Salvar venda</button>
     </div>
   </div>
 </div>
@@ -404,6 +490,25 @@ let CAMPS = [
 ];
 let activeId = null;
 let activeCamp = 'reeng';
+let unreadIds = new Set(); // IDs de leads com mensagens não lidas
+
+// Horário de Brasília formatado
+function horaAgora(){
+  return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'});
+}
+
+// Tempo relativo (ex: "há 2min", "há 1h", "há 3 dias")
+function tempoRelativo(ts){
+  if(!ts) return 'agora';
+  const diff = Date.now() - new Date(ts).getTime();
+  const min = Math.floor(diff/60000);
+  if(min < 1) return 'agora';
+  if(min < 60) return 'há '+min+'min';
+  const h = Math.floor(min/60);
+  if(h < 24) return 'há '+h+'h';
+  const d = Math.floor(h/24);
+  return 'há '+d+' dia'+(d>1?'s':'');
+}
 let inboxFilter = 'todos';
 let searchTerm = '';
 let modalSel = [];
@@ -520,24 +625,30 @@ function getList(){
 }
 
 function renderClist(){
-  const list=getList();
+  // Ordena por última mensagem recebida (mais recente no topo)
+  const list = getList().sort((a,b)=>{
+    const ta = a.last_msg_at ? new Date(a.last_msg_at).getTime() : 0;
+    const tb = b.last_msg_at ? new Date(b.last_msg_at).getTime() : 0;
+    return tb - ta;
+  });
   document.getElementById('clist').innerHTML = list.length===0
     ? '<div style="padding:24px;text-align:center;font-size:12px;color:var(--light)">Nenhum lead encontrado.</div>'
     : list.map(l=>{
         const last=l.msgs&&l.msgs.length?l.msgs[l.msgs.length-1]:null;
-        const unread=(l.temp==='quente'||l.temp==='morno')&&l.id!==activeId;
+        const hasUnread = unreadIds.has(l.id) && l.id !== activeId;
+        const timeLabel = tempoRelativo(l.last_msg_at);
         return `<div class="ci${l.id===activeId?' on':''}" onclick="selectLead('${l.id}')">
-          <div class="ci-r1"><span class="ci-name">${l.name}</span><span class="ci-time">${l.last||'agora'}</span></div>
+          <div class="ci-r1"><span class="ci-name" style="${hasUnread?'font-weight:800;color:var(--txt)':''}">${l.name}</span><span class="ci-time">${timeLabel}</span></div>
           <div class="ci-r2">
-            <span class="ci-prev">${last?last.content:'Sem mensagens'}</span>
-            ${unread?'<span class="ci-bdg">1</span>':''}
+            <span class="ci-prev" style="${hasUnread?'font-weight:600;color:var(--txt)':''}">${last?last.content:'Sem mensagens'}</span>
+            ${hasUnread?'<span class="ci-bdg">!</span>':''}
             <span class="pill ${TMP[l.temp]?.p||'pf'}" style="font-size:9px;padding:2px 7px">${TMP[l.temp]?.lbl}</span>
           </div>
         </div>`;
       }).join('');
 }
 
-function selectLead(id){activeId=id;renderClist();renderChat();renderInfo();}
+function selectLead(id){activeId=id;unreadIds.delete(id);renderClist();renderChat();renderInfo();}
 
 function renderChat(){
   const l=gl(activeId);
@@ -612,7 +723,7 @@ async function sendMsg(){
   const inp=document.getElementById('msg-in'),txt=inp.value.trim();
   if(!txt||!activeId)return;
   const l=gl(activeId);
-  const now=new Date(),h=now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+  const h=horaAgora();
   inp.value='';
   // Envia pelo WhatsApp via Evolution API
   if(l.phone){
@@ -633,7 +744,7 @@ async function sendFile(file){
   toast('Enviando arquivo...');
   const ok = await evoSendMedia(l.phone, file);
   if(!ok){ toast('Erro ao enviar arquivo','err'); return; }
-  const now=new Date(),h=now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+  const h=horaAgora();
   const isImg=file.type.startsWith('image/'),isVid=file.type.startsWith('video/'),isAud=file.type.startsWith('audio/');
   const mtype=isImg?'image':isVid?'video':isAud?'audio':'document';
   const tipo=isImg?'🖼️ ':isVid?'🎥 ':isAud?'🎵 ':'📎 ';
@@ -666,7 +777,7 @@ async function createLead(){
   if(SB){
     const {data,error}=await SB.from('leads').insert({name,phone,temp,tags,note,last_seen:'agora'}).select().single();
     if(error){toast('Erro: '+error.message,'err');return;}
-    lead={id:data.id,name:data.name,phone:data.phone,temp:data.temp,tags:data.tags||[],note:data.note||'',last:'agora',msgs:[]};
+    lead={id:data.id,name:data.name,phone:data.phone,temp:data.temp,tags:data.tags||[],note:data.note||'',last:'agora',last_msg_at:new Date().toISOString(),msgs:[]};
   } else {
     lead={id:'d'+Date.now(),name,phone,temp,tags,note,last:'agora',msgs:[]};
   }
@@ -877,14 +988,15 @@ function closeSending(){document.getElementById('send-ov').classList.add('hidden
 
 // ══════════════ VIEWS ══════════════
 function showView(v){
-  ['inbox','leads','camp'].forEach(x=>{
+  ['inbox','leads','camp','vendas'].forEach(x=>{
     document.getElementById('view-'+x).classList.toggle('hidden',x!==v);
     document.getElementById('nb-'+x).classList.toggle('on',x===v);
   });
-  const titles={inbox:'Inbox WhatsApp',leads:'Leads por temperatura',camp:'Campanhas de remarketing'};
+  const titles={inbox:'Inbox WhatsApp',leads:'Leads por temperatura',camp:'Campanhas de remarketing',vendas:'Registro de Vendas'};
   document.getElementById('ptitle').textContent=titles[v];
   if(v==='leads')renderLeads();
   if(v==='camp'){renderCampTabs();renderCampBody();}
+  if(v==='vendas'){renderVendas();}
 }
 
 document.getElementById('msg-in').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
@@ -908,9 +1020,15 @@ function startRealtime(){
         const jaExiste = lead.msgs.some(m => m.content===msg.content && m.sent_at===msg.sent_at);
         if(!jaExiste){
           lead.msgs.push({ direction:msg.direction, content:msg.content, sent_at:msg.sent_at, media_url:msg.media_url||null, media_type:msg.media_type||null });
-          lead.last = 'agora';
+          lead.last_msg_at = msg.created_at || new Date().toISOString();
+          // Sobe lead pro topo da lista
+          const idx = LEADS.indexOf(lead);
+          if(idx > 0){ LEADS.splice(idx,1); LEADS.unshift(lead); }
+          if(msg.direction === 'in' && msg.lead_id !== activeId){
+            unreadIds.add(msg.lead_id);
+            showNotif(lead);
+          }
           if(msg.lead_id === activeId){ renderChat(); }
-          else { showNotif(lead); }
           renderClist();
         }
       } else {
@@ -930,7 +1048,7 @@ function startRealtime(){
       if(!jaExiste){
         LEADS.unshift({
           id:l.id, name:l.name, phone:l.phone||'', temp:l.temp||'frio',
-          tags:Array.isArray(l.tags)?l.tags:[], note:l.note||'', last:l.last_seen||'agora', msgs:[]
+          tags:Array.isArray(l.tags)?l.tags:[], note:l.note||'', last:l.last_seen||'agora', last_msg_at:l.created_at||new Date().toISOString(), msgs:[]
         });
         renderClist();
         toast('📲 Novo lead: '+l.name);
@@ -967,8 +1085,211 @@ function showNotif(lead){
 }
 
 
+
+// ══════════════ VENDAS ══════════════
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxaSb7QZvkEna_fSe5ApEVXeKYzgZAuGpuMRcDm3_QwoSGSIBJJx0-hil4jwyOqCPzl/exec';
+const MESES_2026 = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const MESES_TODOS = ['Dezembro 2025', ...MESES_2026.map(m => m + ' 2026')];
+
+let VENDAS = [];
+let vMesAtivo = '';
+let vFiltro = '';
+
+function nomePlanilha(mesLabel) {
+  if (mesLabel === 'Dezembro 2025') return 'Dezembro 2025';
+  return mesLabel.replace(' 2026','');
+}
+
+async function carregarVendas() {
+  try {
+    const res = await fetch(SCRIPT_URL + '?t=' + Date.now());
+    const json = await res.json();
+    if (json.status === 'ok' && Array.isArray(json.vendas)) {
+      VENDAS = json.vendas.map(v => {
+        let mes = v.mes || '';
+        if (mes && !mes.includes('2025') && !mes.includes('2026')) mes = mes + ' 2026';
+        return {...v, mes};
+      });
+      renderVendas();
+    }
+  } catch(e) { console.log('Sheets offline, usando dados locais'); }
+}
+
+function renderVendasMesTabs() {
+  const tabs = document.getElementById('v-mes-tabs');
+  if (!tabs) return;
+  const mesesComDados = [...new Set(VENDAS.map(v => v.mes).filter(Boolean))];
+  tabs.innerHTML = '';
+
+  const btnTodos = document.createElement('button');
+  btnTodos.className = 'fb' + (!vMesAtivo ? ' on' : '');
+  btnTodos.textContent = 'Todos';
+  btnTodos.onclick = () => { vMesAtivo = ''; renderVendas(); };
+  tabs.appendChild(btnTodos);
+
+  MESES_TODOS.forEach(mes => {
+    const btn = document.createElement('button');
+    const label = mes.replace(' 2025','').replace(' 2026','').substring(0,3);
+    btn.className = 'fb' + (vMesAtivo === mes ? ' on' : '') + (mesesComDados.includes(mes) ? '' : '');
+    btn.textContent = label;
+    btn.title = mes;
+    btn.style.color = mesesComDados.includes(mes) ? 'var(--green)' : '';
+    btn.onclick = () => { vMesAtivo = mes; renderVendas(); };
+    tabs.appendChild(btn);
+  });
+}
+
+function renderVendas() {
+  renderVendasMesTabs();
+
+  let lista = VENDAS.filter(v => {
+    const matchMes = !vMesAtivo || v.mes === vMesAtivo;
+    const matchBusca = !vFiltro ||
+      (v.nome||'').toLowerCase().includes(vFiltro) ||
+      (v.numero||'').includes(vFiltro) ||
+      (v.anuncio||'').toLowerCase().includes(vFiltro);
+    return matchMes && matchBusca;
+  });
+
+  const titulo = vMesAtivo ? 'Registros de ' + vMesAtivo : 'Todos os registros';
+  const el = document.getElementById('v-tabela-titulo');
+  if (el) el.textContent = titulo;
+
+  const tbody = document.getElementById('v-tbody');
+  const empty = document.getElementById('v-empty');
+  if (!tbody) return;
+
+  if (!lista.length) {
+    tbody.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+  } else {
+    if (empty) empty.style.display = 'none';
+    tbody.innerHTML = lista.map((v, i) => `
+      <tr style="border-bottom:1px solid var(--border);transition:background .1s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background=''">
+        <td style="padding:10px 14px;color:var(--light);font-size:12px">${i+1}</td>
+        <td style="padding:10px 14px;color:var(--purple);font-size:12px">${v.numero||''}</td>
+        <td style="padding:10px 14px;font-size:12px;font-weight:600">${v.nome||''}</td>
+        <td style="padding:10px 14px;color:var(--green);font-weight:700;font-size:12px">R$ ${v.valor||'0'}</td>
+        <td style="padding:10px 14px;color:var(--mid);font-size:12px">${v.anuncio||'-'}</td>
+        <td style="padding:10px 14px;color:var(--light);font-size:12px">${formatarDataVenda(v.data)}</td>
+        <td style="padding:10px 14px;font-size:11px;color:var(--mid)">${v.mes||'-'}</td>
+        <td style="padding:10px 14px"><button onclick="deletarVenda(${i})" style="background:none;border:none;color:var(--light);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px" onmouseover="this.style.color='#EF4444'" onmouseout="this.style.color='var(--light)'">✕</button></td>
+      </tr>`).join('');
+  }
+
+  // Stats
+  const total = lista.reduce((s,v) => {
+    const n = parseFloat((v.valor||'0').toString().replace('R$','').replace(',','.').trim()) || 0;
+    return s + n;
+  }, 0);
+  const ticket = lista.length > 0 ? total / lista.length : 0;
+  const qtd = document.getElementById('v-total-qtd');
+  const val = document.getElementById('v-total-val');
+  const tkt = document.getElementById('v-ticket');
+  if (qtd) qtd.textContent = lista.length;
+  if (val) val.textContent = 'R$ ' + total.toLocaleString('pt-BR', {minimumFractionDigits:2});
+  if (tkt) tkt.textContent = 'R$ ' + ticket.toLocaleString('pt-BR', {minimumFractionDigits:2});
+}
+
+function filtrarVendas(val) { vFiltro = val.toLowerCase(); renderVendas(); }
+
+function deletarVenda(idx) {
+  let lista = VENDAS.filter(v => !vMesAtivo || v.mes === vMesAtivo);
+  const venda = lista[idx];
+  if (!venda) return;
+  VENDAS = VENDAS.filter(v => v !== venda);
+  renderVendas();
+  toast('Venda removida!');
+}
+
+function abrirModalVenda() {
+  // Popula select de mês
+  const sel = document.getElementById('v-mes-sel');
+  sel.innerHTML = '';
+  const mesAtualLabel = MESES_2026[new Date().getMonth()] + ' 2026';
+  MESES_TODOS.forEach(mes => {
+    const opt = document.createElement('option');
+    opt.value = mes; opt.textContent = mes;
+    if (mes === mesAtualLabel) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  // Data hoje
+  document.getElementById('v-data').valueAsDate = new Date();
+  document.getElementById('v-numero').value = '';
+  document.getElementById('v-nome').value = '';
+  document.getElementById('v-anuncio').value = '';
+  document.getElementById('v-valor').value = '';
+  openModal('nova-venda');
+}
+
+async function salvarVenda() {
+  const numero = document.getElementById('v-numero').value.trim();
+  const nome = document.getElementById('v-nome').value.trim();
+  const valor = document.getElementById('v-valor').value.trim();
+  const data = document.getElementById('v-data').value;
+  const anuncio = document.getElementById('v-anuncio').value.trim();
+  const mes = document.getElementById('v-mes-sel').value;
+
+  if (!nome || !valor) { toast('Preencha nome e valor!', 'err'); return; }
+
+  const venda = { numero, nome, valor, anuncio, mes, data, id: Date.now() };
+  VENDAS.unshift(venda);
+
+  // Tenta salvar no Google Sheets
+  try {
+    const dataFmt = data ? new Date(data + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+    await fetch(SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({...venda, mes: nomePlanilha(mes), data: dataFmt})
+    });
+    toast('✅ Venda salva no Google Sheets!');
+  } catch(e) {
+    toast('Salvo localmente (Sheets offline)');
+  }
+
+  closeModal('nova-venda');
+  if (vMesAtivo && vMesAtivo !== mes) vMesAtivo = mes;
+  renderVendas();
+}
+
+function formatarDataVenda(d) {
+  if (!d) return '-';
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(String(d))) return d;
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3] + '/' + m[2] + '/' + m[1];
+  return d;
+}
+
+function exportarVendasCSV() {
+  const lista = vMesAtivo ? VENDAS.filter(v => v.mes === vMesAtivo) : VENDAS;
+  if (!lista.length) { toast('Nenhum dado para exportar.', 'err'); return; }
+  const header = 'NUMERO,NOME,VALOR,DATA,ANUNCIO,MES\n';
+  const rows = lista.map(v =>
+    `"${v.numero||''}","${v.nome||''}","R$ ${v.valor||''}","${formatarDataVenda(v.data)}","${v.anuncio||''}","${v.mes||''}"`
+  ).join('\n');
+  const blob = new Blob(['\uFEFF'+header+rows], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'vendas' + (vMesAtivo ? '_'+vMesAtivo : '') + '.csv';
+  a.click();
+  toast('✅ CSV exportado!');
+}
+
+// Máscara valor
+document.addEventListener('DOMContentLoaded', () => {
+  const vValor = document.getElementById('v-valor');
+  if (vValor) vValor.addEventListener('input', function() {
+    let v = this.value.replace(/\D/g,'');
+    v = (parseInt(v||'0')/100).toFixed(2).replace('.',',');
+    this.value = v;
+  });
+});
+
+
 // INIT
 initDB();
+carregarVendas();
 </script>
 </body>
 </html>
