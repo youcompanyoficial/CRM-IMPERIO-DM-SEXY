@@ -1143,7 +1143,7 @@ function startRealtime(){
     .subscribe();
 
   // POLLING DE FALLBACK — verifica a cada 8s caso Realtime falhe
-  _pollingInterval = setInterval(pollNewMessages, 8000);
+  _pollingInterval = setInterval(pollNewMessages, 2000);
   pollNewMessages(); // primeira chamada imediata para marcar posição
 
   console.log('✅ Realtime + Polling ativo');
