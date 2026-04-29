@@ -586,14 +586,27 @@ async function loadLeads(){
   LEADS = leads.map(l=>{
     const lMsgs = msgs
       .filter(m=>m.lead_id===l.id)
-      .map(m=>({
-        direction: m.direction,
-        content: m.content,
-        sent_at: m.sent_at,
-        media_url: m.media_url||null,
-        media_type: m.media_type||null,
-        created_at: m.created_at||null
-      }));
+      .map(m=>{
+        // Se sent_at parece UTC (00:xx, 01:xx, 02:xx, 03:xx) e tem created_at, recalcula
+        let sent_at = m.sent_at || '';
+        if(m.created_at){
+          const horaUTC = parseInt((sent_at||'').split(':')[0]);
+          const temCreatedAt = !isNaN(new Date(m.created_at).getTime());
+          if(temCreatedAt && (horaUTC < 4 || sent_at === '' || sent_at === null)){
+            sent_at = new Date(m.created_at).toLocaleTimeString('pt-BR',{
+              hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'
+            });
+          }
+        }
+        return {
+          direction: m.direction,
+          content: m.content,
+          sent_at,
+          media_url: m.media_url||null,
+          media_type: m.media_type||null,
+          created_at: m.created_at||null
+        };
+      });
     const lastMsg = lMsgs.length ? lMsgs[lMsgs.length-1] : null;
     return {
       id: l.id,
@@ -1268,13 +1281,35 @@ function renderVendas() {
 
 function filtrarVendas(val) { vFiltro = val.toLowerCase(); renderVendas(); }
 
-function deletarVenda(idx) {
+async function deletarVenda(idx) {
   let lista = VENDAS.filter(v => !vMesAtivo || v.mes === vMesAtivo);
   const venda = lista[idx];
   if (!venda) return;
+
+  // Remove localmente
   VENDAS = VENDAS.filter(v => v !== venda);
   renderVendas();
-  toast('Venda removida!');
+  toast('Removendo venda...');
+
+  // Remove no Google Sheets
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        action: 'delete',
+        numero: venda.numero,
+        nome: venda.nome,
+        valor: venda.valor,
+        data: venda.data,
+        mes: nomePlanilha(venda.mes||'')
+      })
+    });
+    toast('✅ Venda removida da planilha!');
+  } catch(e) {
+    toast('Removido localmente (Sheets offline)');
+  }
 }
 
 function abrirModalVenda() {
