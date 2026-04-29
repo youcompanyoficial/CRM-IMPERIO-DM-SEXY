@@ -776,7 +776,13 @@ async function sendMsg(){
   }
   const m={direction:'out',content:txt,sent_at:h};
   if(!l.msgs)l.msgs=[];
-  l.msgs.push(m); l.last='agora';
+  l.msgs.push(m);
+  l.last = 'agora';
+  l.last_msg_at = new Date().toISOString();
+  l.last_sent_at_label = h;
+  // Sobe pro topo
+  const idxS = LEADS.indexOf(l);
+  if(idxS > 0){ LEADS.splice(idxS,1); LEADS.unshift(l); }
   await dbMsg(l.id,'out',txt,h);
   renderChat();renderClist();
 }
@@ -795,7 +801,12 @@ async function sendFile(file){
   const localUrl=URL.createObjectURL(file);
   const m={direction:'out',content:tipo+file.name,sent_at:h,media_url:localUrl,media_type:mtype};
   if(!l.msgs)l.msgs=[];
-  l.msgs.push(m); l.last='agora';
+  l.msgs.push(m);
+  l.last = 'agora';
+  l.last_msg_at = new Date().toISOString();
+  l.last_sent_at_label = h;
+  const idxF = LEADS.indexOf(l);
+  if(idxF > 0){ LEADS.splice(idxF,1); LEADS.unshift(l); }
   await dbMsg(l.id,'out',tipo+file.name,h,null,mtype);
   renderChat();renderClist();
   toast('✅ Arquivo enviado!');
