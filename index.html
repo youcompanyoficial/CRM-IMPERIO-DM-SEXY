@@ -435,6 +435,8 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const EVO_URL = 'https://evolution-api-production-3ffb.up.railway.app';
 const EVO_KEY = '8cf66855caca5a5e03efeae38b2df046296a7636e830838ed6a900724c885252';
 const EVO_INSTANCE = 'imperio-crm';
+// Números da própria loja — não criar leads para esses
+const NUMEROS_PROPRIOS = ['556298668473','556291070980','5562910709800'];
 
 async function evoSendText(phone, text) {
   const num = phone.replace(/\D/g, '');
@@ -500,21 +502,27 @@ function horaAgora(){
 // Tempo relativo (ex: "há 2min", "há 1h", "há 3 dias")
 function tempoRelativo(ts){
   if(!ts) return 'agora';
-  const d = new Date(ts);
-  if(!isNaN(d.getTime())){
-    const diff = Date.now() - d.getTime();
-    const seg = Math.floor(diff/1000);
-    if(seg < 10) return 'agora';
-    if(seg < 60) return 'há '+seg+'s';
-    const min = Math.floor(seg/60);
-    if(min < 60) return 'há '+min+'min';
-    const h = Math.floor(min/60);
-    if(h < 24) return 'há '+h+'h';
-    const days = Math.floor(h/24);
-    return 'há '+days+' dia'+(days>1?'s':'');
+  // Tenta parse como ISO timestamp
+  let d = new Date(ts);
+  // Se vier como string de hora "HH:MM", converte para hoje
+  if(isNaN(d.getTime()) && /^\d{1,2}:\d{2}$/.test(String(ts))){
+    const [hh,mm] = ts.split(':');
+    d = new Date();
+    d.setHours(parseInt(hh), parseInt(mm), 0, 0);
   }
-  if(/^\d{1,2}:\d{2}$/.test(String(ts))) return String(ts);
-  return 'agora';
+  if(isNaN(d.getTime())) return 'agora';
+  const agora = new Date();
+  const diff = agora.getTime() - d.getTime();
+  if(diff < 0) return 'agora'; // futuro (diferença de fuso)
+  const seg = Math.floor(diff/1000);
+  if(seg < 30) return 'agora';
+  if(seg < 60) return 'há '+seg+'s';
+  const min = Math.floor(seg/60);
+  if(min < 60) return 'há '+min+'min';
+  const h = Math.floor(min/60);
+  if(h < 24) return 'há '+h+'h';
+  const days = Math.floor(h/24);
+  return 'há '+days+' dia'+(days>1?'s':'');
 }
 
 // Atualiza os tempos relativos a cada 10 segundos automaticamente
@@ -680,7 +688,13 @@ function renderClist(){
     : list.map(l=>{
         const last=l.msgs&&l.msgs.length?l.msgs[l.msgs.length-1]:null;
         const hasUnread = unreadIds.has(l.id) && l.id !== activeId;
-        const timeLabel = l.last_msg_at ? tempoRelativo(l.last_msg_at) : (l.last_sent_at_label || l.last || 'agora');
+        // Usa last_msg_at (ISO) se disponível, senão tenta calcular via sent_at
+        let timeLabel = 'agora';
+        if(l.last_msg_at){
+          timeLabel = tempoRelativo(l.last_msg_at);
+        } else if(l.last_sent_at_label && /^\d{1,2}:\d{2}$/.test(l.last_sent_at_label)){
+          timeLabel = tempoRelativo(l.last_sent_at_label);
+        }
         return `<div class="ci${l.id===activeId?' on':''}" onclick="selectLead('${l.id}')">
           <div class="ci-r1"><span class="ci-name" style="${hasUnread?'font-weight:800;color:var(--txt)':''}">${l.name}</span><span class="ci-time">${timeLabel}</span></div>
           <div class="ci-r2">
