@@ -682,7 +682,7 @@ async function loadLeads(){
       tags: Array.isArray(l.tags)?l.tags:[],
       note: l.note||'',
       last: l.last_seen||'agora',
-      last_msg_at: lastMsg?.created_at || l.updated_at || l.created_at || null,
+      last_msg_at: lastMsg?.created_at || null, // só usa created_at de mensagem real
       atend_status: l.atend_status||'atendimento',
       msgs: lMsgs,
       msgsLoaded: lMsgs.length > 0
@@ -775,10 +775,10 @@ function getList(){
 }
 
 function renderClist(){
-  // Ordena por última mensagem recebida (mais recente no topo)
+  // Ordena por last_msg_at local (calculado do created_at das mensagens reais)
   const list = getList().sort((a,b)=>{
-    const ta = a.last_msg_at ? new Date(a.last_msg_at).getTime() : 0;
-    const tb = b.last_msg_at ? new Date(b.last_msg_at).getTime() : 0;
+    const ta = a.last_msg_at ? new Date(a.last_msg_at).getTime() : (a.created_at ? new Date(a.created_at).getTime() : 0);
+    const tb = b.last_msg_at ? new Date(b.last_msg_at).getTime() : (b.created_at ? new Date(b.created_at).getTime() : 0);
     return tb - ta;
   });
   document.getElementById('clist').innerHTML = list.length===0
@@ -786,7 +786,7 @@ function renderClist(){
     : list.map(l=>{
         const last=l.msgs&&l.msgs.length?l.msgs[l.msgs.length-1]:null;
         const hasUnread = unreadIds.has(l.id) && l.id !== activeId;
-        const timeLabel = l.last_msg_at ? tempoRelativo(l.last_msg_at) : 'agora';
+        const timeLabel = l.last_msg_at ? tempoRelativo(l.last_msg_at) : '—';
         return `<div class="ci${l.id===activeId?' on':''}" onclick="selectLead('${l.id}')">
           <div class="ci-r1"><span class="ci-name" style="${hasUnread?'font-weight:800;color:var(--txt)':''}">${l.name}</span><span class="ci-time">${timeLabel}</span></div>
           <div class="ci-r2">
