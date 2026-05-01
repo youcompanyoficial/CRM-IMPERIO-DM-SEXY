@@ -571,8 +571,13 @@ function horaAgora(){
 // Tempo relativo (ex: "há 2min", "há 1h", "há 3 dias")
 function parseTS(ts){
   if(!ts) return null;
-  // Normaliza formato do Supabase: "2026-05-01 14:06:19.353211+00" -> ISO
-  const s = String(ts).replace(' ', 'T').replace('+00', '+00:00');
+  let s = String(ts).replace(' ', 'T');
+  // Se não tem timezone explícito, adiciona Z (UTC)
+  if(!s.includes('+') && !s.includes('Z') && !s.endsWith('00:00')){
+    s = s.replace(/(\.\d+)?$/, '$1Z');
+  }
+  // Normaliza +00 para +00:00
+  s = s.replace(/\+00$/, '+00:00');
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
 }
