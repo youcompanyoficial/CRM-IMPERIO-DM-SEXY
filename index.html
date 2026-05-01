@@ -756,7 +756,7 @@ function loadDemo(){
 
 async function dbSave(lead){
   if(!SB)return;
-  await SB.from('leads').upsert({id:lead.id,name:lead.name,phone:lead.phone,temp:lead.temp,tags:lead.tags,note:lead.note,last_seen:lead.last,updated_at:new Date().toISOString()});
+  await SB.from('leads').upsert({id:lead.id,name:lead.name,phone:lead.phone,temp:lead.temp,tags:lead.tags,note:lead.note,last_seen:lead.last});
 }
 
 async function dbMsg(lid,direction,content,sent_at,media_url=null,media_type=null){
