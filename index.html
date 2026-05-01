@@ -633,23 +633,63 @@ function closeModal(id){document.getElementById('modal-'+id).classList.add('hidd
 
 // ══════════════ SUPABASE ══════════════
 async function initDB(){
+  setStatus('connecting','Conectando ao Supabase...');
+
+  // Detecta se está rodando como arquivo local (sem servidor)
+  if(location.protocol === 'file:'){
+    setStatus('err','⚠️ Abra pelo GitHub Pages ou servidor — arquivo local bloqueia conexão (CORS). Carregando dados demo...');
+    setTimeout(()=>loadDemo(), 500);
+    return;
+  }
+
   try{
     SB = window.supabase.createClient(SB_URL, SB_KEY, {
       auth: { persistSession: false, autoRefreshToken: false }
     });
+
+    // Timeout de 10s
+    let settled = false;
+    const timer = setTimeout(()=>{
+      if(!settled){ settled=true; throw new Error('Timeout — servidor demorou mais de 10s'); }
+    }, 10000);
+
+    const {data: pingData, error: pingError} = await SB.from('leads').select('id').limit(1);
+    clearTimeout(timer);
+    settled = true;
+
+    if(pingError){
+      throw new Error(pingError.message || pingError.hint || JSON.stringify(pingError));
+    }
+
     setStatus('connecting','Carregando leads...');
-    // Testa conexão antes de prosseguir
-    const {error: pingError} = await SB.from('leads').select('id').limit(1);
-    if(pingError) throw pingError;
     await loadLeads();
     await loadCamps();
     startRealtime();
-    setStatus('ok','✅ Supabase conectado — dados salvos automaticamente');
+    setStatus('ok','✅ Conectado — '+LEADS.length+' leads carregados');
     setTimeout(()=>document.getElementById('status-bar').classList.add('hidden'),4000);
+
   } catch(e){
-    const detail = e?.message || e?.hint || e?.details || JSON.stringify(e) || String(e);
-    console.error("Supabase error completo:", JSON.stringify(e, null, 2));
-    setStatus("err","Erro: "+detail+" — usando modo demo");
+    const detail = e?.message || e?.hint || e?.details || String(e);
+    console.error('Supabase erro:', detail);
+
+    let friendlyMsg = '❌ ' + detail;
+    if(detail.includes('Failed to fetch') || detail.includes('NetworkError')){
+      friendlyMsg = '❌ Sem acesso ao Supabase — abra pelo GitHub Pages (não como arquivo local)';
+    } else if(detail.includes('permission') || detail.includes('policy') || detail.includes('RLS')){
+      friendlyMsg = '❌ Permissão negada — rode o SQL de permissões no Supabase SQL Editor';
+    } else if(detail.includes('does not exist')){
+      friendlyMsg = '❌ Tabela não encontrada — rode o SQL de criação das tabelas';
+    }
+
+    setStatus('err', friendlyMsg);
+
+    const bar = document.getElementById('status-bar');
+    const retryBtn = document.createElement('button');
+    retryBtn.textContent = '🔄 Tentar novamente';
+    retryBtn.style.cssText = 'margin-left:8px;height:20px;padding:0 10px;border-radius:10px;border:1px solid currentColor;background:transparent;font-size:10px;font-weight:700;cursor:pointer;color:inherit;font-family:inherit;flex-shrink:0';
+    retryBtn.onclick = () => { retryBtn.remove(); initDB(); };
+    bar.appendChild(retryBtn);
+
     loadDemo();
   }
 }
