@@ -673,15 +673,18 @@ async function initDB(){
     console.error('Supabase erro:', detail);
 
     let friendlyMsg = '❌ ' + detail;
-    if(detail.includes('Failed to fetch') || detail.includes('NetworkError')){
-      friendlyMsg = '❌ Sem acesso ao Supabase — abra pelo GitHub Pages (não como arquivo local)';
-    } else if(detail.includes('permission') || detail.includes('policy') || detail.includes('RLS')){
-      friendlyMsg = '❌ Permissão negada — rode o SQL de permissões no Supabase SQL Editor';
-    } else if(detail.includes('does not exist')){
-      friendlyMsg = '❌ Tabela não encontrada — rode o SQL de criação das tabelas';
+    if(detail.includes('Failed to fetch') || detail.includes('NetworkError') || detail.includes('fetch')){
+      friendlyMsg = '❌ CORS/Rede: rode o SQL de permissões no Supabase';
+    } else if(detail.includes('permission') || detail.includes('policy') || detail.includes('RLS') || detail.includes('row-level')){
+      friendlyMsg = '❌ RLS bloqueando — rode o SQL de permissões';
+    } else if(detail.includes('does not exist') || detail.includes('relation')){
+      friendlyMsg = '❌ Tabela não existe — rode o SQL de criação';
+    } else if(detail.includes('column') || detail.includes('updated_at')){
+      friendlyMsg = '❌ Coluna faltando — rode o SQL de atualização';
     }
 
-    setStatus('err', friendlyMsg);
+    console.error('ERRO COMPLETO:', detail);
+    setStatus('err', friendlyMsg + ' | ' + detail.slice(0,80));
 
     const bar = document.getElementById('status-bar');
     const retryBtn = document.createElement('button');
@@ -690,12 +693,41 @@ async function initDB(){
     retryBtn.onclick = () => { retryBtn.remove(); initDB(); };
     bar.appendChild(retryBtn);
 
+    // Mostra popup com SQL para corrigir
+    showSQLFix();
     loadDemo();
   }
 }
 
+function showSQLFix(){
+  if(document.getElementById('sql-fix-box')) return;
+  const sql = `-- Cole no SQL Editor do Supabase e clique RUN:
+alter table if exists leads disable row level security;
+alter table if exists messages disable row level security;
+alter table if exists campaigns disable row level security;
+alter table if exists campaign_leads disable row level security;
+grant all privileges on all tables in schema public to anon;
+grant all privileges on all tables in schema public to authenticated;
+grant usage on schema public to anon;
+grant usage on schema public to authenticated;`;
+  const box = document.createElement('div');
+  box.id = 'sql-fix-box';
+  box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.25);z-index:999;max-width:520px;width:90%;font-family:inherit';
+  box.innerHTML = `
+    <div style="font-size:15px;font-weight:800;color:#1E1B4B;margin-bottom:6px">⚠️ Erro de permissão no Supabase</div>
+    <div style="font-size:12px;color:#6B7280;margin-bottom:12px">Vá no <strong>Supabase → SQL Editor</strong>, cole o código abaixo e clique em <strong>RUN</strong>. Depois clique em Tentar novamente:</div>
+    <textarea id="sql-ta" readonly onclick="this.select()" style="width:100%;height:150px;font-size:11px;font-family:monospace;border:1.5px solid #E5E7EB;border-radius:8px;padding:8px;background:#F5F3FF;color:#1E1B4B;resize:none">${sql}</textarea>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="navigator.clipboard.writeText(document.getElementById('sql-ta').value).then(()=>toast('✅ SQL copiado!'))" style="flex:1;height:36px;border-radius:20px;border:none;background:linear-gradient(135deg,#7C3AED,#8B5CF6);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📋 Copiar SQL</button>
+      <button onclick="document.getElementById('sql-fix-box').remove();initDB();" style="flex:1;height:36px;border-radius:20px;border:1.5px solid #7C3AED;background:transparent;color:#7C3AED;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔄 Tentar novamente</button>
+    </div>
+  `;
+  document.body.appendChild(box);
+}
+
 async function loadLeads(){
-  const res1 = await SB.from('leads').select('*').order('updated_at',{ascending:false,nullsFirst:false});
+  // Tenta ordenar por updated_at, cai em created_at se não existir
+  let res1 = await SB.from('leads').select('*').order('created_at',{ascending:false});
   if(res1.error) throw new Error(res1.error.message || 'Erro ao carregar leads');
   const leads = res1.data;
   const res2 = await SB.from('messages').select('*').order('created_at',{ascending:true});
