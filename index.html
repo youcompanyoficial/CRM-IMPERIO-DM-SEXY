@@ -248,8 +248,6 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
     <div class="status-bar connecting" id="status-bar">
       <div class="dot connecting" id="status-dot"></div>
       <span id="status-txt">Conectando ao Supabase...</span>
-      <span style="flex:1"></span>
-      <button onclick="runDiag()" style="height:20px;padding:0 10px;border-radius:10px;border:1px solid currentColor;background:transparent;font-size:10px;font-weight:700;cursor:pointer;color:inherit;font-family:inherit">🔍 Diagnóstico</button>
     </div>
     <div class="topbar">
       <span class="ptitle" id="ptitle">Inbox WhatsApp</span>
@@ -501,11 +499,6 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 const SB_URL = 'https://yhqqebyefqnieptfkohl.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlocXFlYnllZnFuaWVwdGZrb2hsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMTc0ODYsImV4cCI6MjA5Mjc5MzQ4Nn0.CsrEWw_G8aGCqIXJTC57vUWgwCzHKio5OQ3tPUyaG4M';
 
-// ══ ALLOWED ORIGINS FIX ══
-// O Supabase bloqueia origens não cadastradas.
-// Este bloco instrui a adicionar o domínio nas configurações.
-window._sbOriginOk = false;
-
 
 // ══════════════ EVOLUTION API ══════════════
 const EVO_URL = 'https://evolution-api-production-3ffb.up.railway.app';
@@ -638,141 +631,44 @@ function closeModal(id){document.getElementById('modal-'+id).classList.add('hidd
 
 // ══════════════ SUPABASE ══════════════
 async function initDB(){
-  setStatus('connecting','Conectando ao Supabase...');
-
-  // Detecta se está rodando como arquivo local (sem servidor)
-  if(location.protocol === 'file:'){
-    setStatus('err','⚠️ Abra pelo GitHub Pages ou servidor — arquivo local bloqueia conexão (CORS). Carregando dados demo...');
-    setTimeout(()=>loadDemo(), 500);
-    return;
-  }
-
   try{
     SB = window.supabase.createClient(SB_URL, SB_KEY, {
       auth: { persistSession: false, autoRefreshToken: false }
     });
-
-    // Timeout de 10s
-    let settled = false;
-    const timer = setTimeout(()=>{
-      if(!settled){ settled=true; throw new Error('Timeout — servidor demorou mais de 10s'); }
-    }, 10000);
-
-    const {data: pingData, error: pingError} = await SB.from('leads').select('id').limit(1);
-    clearTimeout(timer);
-    settled = true;
-
-    if(pingError){
-      throw new Error(pingError.message || pingError.hint || JSON.stringify(pingError));
-    }
-
     setStatus('connecting','Carregando leads...');
+    // Testa conexão antes de prosseguir
+    const {error: pingError} = await SB.from('leads').select('id').limit(1);
+    if(pingError) throw pingError;
     await loadLeads();
     await loadCamps();
     startRealtime();
-    setStatus('ok','✅ Conectado — '+LEADS.length+' leads carregados');
+    setStatus('ok','✅ Supabase conectado — dados salvos automaticamente');
     setTimeout(()=>document.getElementById('status-bar').classList.add('hidden'),4000);
-
   } catch(e){
-    const detail = e?.message || e?.hint || e?.details || String(e);
-    console.error('Supabase erro:', detail);
-
-    let friendlyMsg = '❌ ' + detail;
-    if(detail.includes('allowlist') || detail.includes('Host not in')){
-      friendlyMsg = '❌ Domínio não autorizado — adicione seu domínio no Supabase (Authentication → URL Configuration)';
-      showAllowlistFix();
-      return;
-    } else if(detail.includes('Failed to fetch') || detail.includes('NetworkError') || detail.includes('fetch')){
-      friendlyMsg = '❌ CORS/Rede: adicione o domínio no Supabase → Authentication → URL Configuration';
-    } else if(detail.includes('permission') || detail.includes('policy') || detail.includes('RLS') || detail.includes('row-level')){
-      friendlyMsg = '❌ RLS bloqueando — rode o SQL de permissões';
-    } else if(detail.includes('does not exist') || detail.includes('relation')){
-      friendlyMsg = '❌ Tabela não existe — rode o SQL de criação';
-    } else if(detail.includes('column') || detail.includes('updated_at')){
-      friendlyMsg = '❌ Coluna faltando — rode o SQL de atualização';
-    }
-
-    console.error('ERRO COMPLETO:', detail);
-    setStatus('err', friendlyMsg + ' | ' + detail.slice(0,80));
-
-    const bar = document.getElementById('status-bar');
-    const retryBtn = document.createElement('button');
-    retryBtn.textContent = '🔄 Tentar novamente';
-    retryBtn.style.cssText = 'margin-left:8px;height:20px;padding:0 10px;border-radius:10px;border:1px solid currentColor;background:transparent;font-size:10px;font-weight:700;cursor:pointer;color:inherit;font-family:inherit;flex-shrink:0';
-    retryBtn.onclick = () => { retryBtn.remove(); initDB(); };
-    bar.appendChild(retryBtn);
-
-    // Mostra popup com SQL para corrigir
-    showSQLFix();
+    const detail = e?.message || e?.hint || e?.details || JSON.stringify(e) || String(e);
+    console.error("Supabase error completo:", JSON.stringify(e, null, 2));
+    setStatus("err","Erro: "+detail+" — usando modo demo");
     loadDemo();
   }
 }
 
-function showSQLFix(){
-  if(document.getElementById('sql-fix-box')) return;
-  const sql = `-- Cole no SQL Editor do Supabase e clique RUN:
-alter table if exists leads disable row level security;
-alter table if exists messages disable row level security;
-alter table if exists campaigns disable row level security;
-alter table if exists campaign_leads disable row level security;
-grant all privileges on all tables in schema public to anon;
-grant all privileges on all tables in schema public to authenticated;
-grant usage on schema public to anon;
-grant usage on schema public to authenticated;`;
-  const box = document.createElement('div');
-  box.id = 'sql-fix-box';
-  box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.25);z-index:999;max-width:520px;width:90%;font-family:inherit';
-  box.innerHTML = `
-    <div style="font-size:15px;font-weight:800;color:#1E1B4B;margin-bottom:6px">⚠️ Erro de permissão no Supabase</div>
-    <div style="font-size:12px;color:#6B7280;margin-bottom:12px">Vá no <strong>Supabase → SQL Editor</strong>, cole o código abaixo e clique em <strong>RUN</strong>. Depois clique em Tentar novamente:</div>
-    <textarea id="sql-ta" readonly onclick="this.select()" style="width:100%;height:150px;font-size:11px;font-family:monospace;border:1.5px solid #E5E7EB;border-radius:8px;padding:8px;background:#F5F3FF;color:#1E1B4B;resize:none">${sql}</textarea>
-    <div style="display:flex;gap:8px;margin-top:12px">
-      <button onclick="navigator.clipboard.writeText(document.getElementById('sql-ta').value).then(()=>toast('✅ SQL copiado!'))" style="flex:1;height:36px;border-radius:20px;border:none;background:linear-gradient(135deg,#7C3AED,#8B5CF6);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📋 Copiar SQL</button>
-      <button onclick="document.getElementById('sql-fix-box').remove();initDB();" style="flex:1;height:36px;border-radius:20px;border:1.5px solid #7C3AED;background:transparent;color:#7C3AED;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔄 Tentar novamente</button>
-    </div>
-  `;
-  document.body.appendChild(box);
-}
-
-function showAllowlistFix(){
-  if(document.getElementById('allowlist-box')) return;
-  const origin = window.location.origin;
-  const box = document.createElement('div');
-  box.id = 'allowlist-box';
-  box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.25);z-index:999;max-width:500px;width:90%;font-family:inherit';
-  box.innerHTML = `
-    <div style="font-size:15px;font-weight:800;color:#1E1B4B;margin-bottom:6px">🔐 Domínio não autorizado no Supabase</div>
-    <div style="font-size:12px;color:#6B7280;margin-bottom:14px;line-height:1.6">
-      O Supabase está bloqueando a conexão do seu domínio.<br>
-      Siga os passos abaixo para liberar:
-    </div>
-    <div style="background:#F5F3FF;border-radius:10px;padding:12px;font-size:12px;color:#1E1B4B;line-height:1.8;margin-bottom:14px">
-      <strong>1.</strong> Acesse <a href="https://supabase.com/dashboard/project/yhqqebyefqnieptfkohl/auth/url-configuration" target="_blank" style="color:#7C3AED;font-weight:700">Supabase → Authentication → URL Configuration</a><br>
-      <strong>2.</strong> Em <strong>"Redirect URLs"</strong> clique em <strong>"Add URL"</strong><br>
-      <strong>3.</strong> Adicione: <code style="background:#EDE9FE;padding:2px 6px;border-radius:4px;font-weight:700">${origin}</code><br>
-      <strong>4.</strong> Clique <strong>Save</strong> e depois clique em Tentar novamente abaixo
-    </div>
-    <div style="display:flex;gap:8px">
-      <button onclick="window.open('https://supabase.com/dashboard/project/yhqqebyefqnieptfkohl/auth/url-configuration','_blank')" style="flex:1;height:36px;border-radius:20px;border:none;background:linear-gradient(135deg,#7C3AED,#8B5CF6);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔗 Abrir Supabase</button>
-      <button onclick="document.getElementById('allowlist-box').remove();initDB();" style="flex:1;height:36px;border-radius:20px;border:1.5px solid #7C3AED;background:transparent;color:#7C3AED;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔄 Tentar novamente</button>
-    </div>
-  `;
-  document.body.appendChild(box);
-}
-
 async function loadLeads(){
-  // Tenta ordenar por updated_at, cai em created_at se não existir
-  let res1 = await SB.from('leads').select('*').order('created_at',{ascending:false});
+  const res1 = await SB.from('leads').select('*').order('updated_at',{ascending:false,nullsFirst:false});
   if(res1.error) throw new Error(res1.error.message || 'Erro ao carregar leads');
   const leads = res1.data;
-  const res2 = await SB.from('messages').select('*').order('created_at',{ascending:true});
+
+  // Carrega só últimas mensagens (preview) para cada lead sem sobrecarregar
+  const res2 = await SB.from('messages')
+    .select('*')
+    .order('created_at',{ascending:false})
+    .limit(500);
   const msgs = res2.data || [];
 
   LEADS = leads.map(l=>{
     const lMsgs = msgs
       .filter(m=>m.lead_id===l.id)
+      .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))
       .map(m=>{
-        // Se sent_at parece UTC (00:xx, 01:xx, 02:xx, 03:xx) e tem created_at, recalcula
         let sent_at = m.sent_at || '';
         if(m.created_at){
           const horaUTC = parseInt((sent_at||'').split(':')[0]);
@@ -803,12 +699,48 @@ async function loadLeads(){
       last: l.last_seen||'agora',
       last_msg_at: lastMsg?.created_at || l.updated_at || l.created_at || null,
       atend_status: l.atend_status||'atendimento',
-      msgs: lMsgs
+      msgs: lMsgs,
+      msgsLoaded: lMsgs.length > 0
     };
   });
 
   if(LEADS.length>0) activeId=LEADS[0].id;
-  renderClist(); renderChat(); renderInfo();
+  renderClist();
+  await loadMsgsDoLead(activeId);
+  renderChat(); renderInfo();
+}
+
+// Carrega mensagens completas de um lead específico sob demanda
+async function loadMsgsDoLead(id){
+  if(!SB||!id) return;
+  const l = gl(id); if(!l) return;
+  const {data:msgs} = await SB.from('messages')
+    .select('*')
+    .eq('lead_id', id)
+    .order('created_at',{ascending:true});
+  if(!msgs) return;
+  l.msgs = msgs.map(m=>{
+    let sent_at = m.sent_at || '';
+    if(m.created_at){
+      const horaUTC = parseInt((sent_at||'').split(':')[0]);
+      const temCreatedAt = !isNaN(new Date(m.created_at).getTime());
+      if(temCreatedAt && (horaUTC < 4 || sent_at === '' || sent_at === null)){
+        sent_at = new Date(m.created_at).toLocaleTimeString('pt-BR',{
+          hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'
+        });
+      }
+    }
+    return {
+      direction: m.direction,
+      content: m.content,
+      sent_at,
+      media_url: m.media_url||null,
+      media_type: m.media_type||null,
+      created_at: m.created_at||null
+    };
+  });
+  l.msgsLoaded = true;
+  if(id === activeId) renderChat();
 }
 
 async function loadCamps(){
@@ -887,7 +819,19 @@ function renderClist(){
       }).join('');
 }
 
-function selectLead(id){activeId=id;unreadIds.delete(id);atualizarBadge();renderClist();renderChat();renderInfo();}
+function selectLead(id){
+  activeId=id;
+  unreadIds.delete(id);
+  atualizarBadge();
+  renderClist();
+  renderChat();
+  renderInfo();
+  // Carrega mensagens completas se ainda não carregou
+  const l = gl(id);
+  if(l && !l.msgsLoaded){
+    loadMsgsDoLead(id);
+  }
+}
 
 function renderChat(){
   const l=gl(activeId);
@@ -1291,53 +1235,38 @@ document.getElementById('msg-in').addEventListener('keydown',e=>{if(e.key==='Ent
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',function(e){if(e.target===this)this.classList.add('hidden');}));
 
 
-// ══════════════ REALTIME + POLLING CORRIGIDO ══════════════
-let _seenMsgIds = new Set();
+// ══════════════ REALTIME + POLLING FALLBACK ══════════════
+let _lastMsgId = null; // controle de polling
 let _pollingInterval = null;
-let _lastPollTime = null;
 
 function processNewMsg(msg){
-  if(!msg || !msg.id) return;
-  if(_seenMsgIds.has(msg.id)) return; // já processou
-  _seenMsgIds.add(msg.id);
-
-  // Corrige horário UTC → Brasília
-  let sent_at = msg.sent_at || '';
-  if(msg.created_at){
-    try{
-      sent_at = new Date(msg.created_at).toLocaleTimeString('pt-BR',{
-        hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'
-      });
-    }catch(e){}
-  }
-
-  const m = {
-    direction: msg.direction,
-    content: msg.content,
-    sent_at,
-    media_url: msg.media_url||null,
-    media_type: msg.media_type||null,
-    created_at: msg.created_at||null
-  };
-
   const lead = gl(msg.lead_id);
   if(lead){
     if(!lead.msgs) lead.msgs=[];
-    lead.msgs.push(m);
-    lead.last_msg_at = msg.created_at || new Date().toISOString();
-    // Sobe pro topo da lista
-    const idx = LEADS.indexOf(lead);
-    if(idx > 0){ LEADS.splice(idx,1); LEADS.unshift(lead); }
-    // Notificação de mensagem recebida
-    if(msg.direction === 'in' && msg.lead_id !== activeId){
-      unreadIds.add(msg.lead_id);
-      showNotif(lead);
+    const jaExiste = lead.msgs.some(m => m.content===msg.content && m.sent_at===msg.sent_at && m.direction===msg.direction);
+    if(!jaExiste){
+      lead.msgs.push({
+        direction: msg.direction,
+        content: msg.content,
+        sent_at: msg.sent_at,
+        media_url: msg.media_url||null,
+        media_type: msg.media_type||null,
+        created_at: msg.created_at||null
+      });
+      lead.last_msg_at = msg.created_at || new Date().toISOString();
+      lead.last_sent_at_label = msg.sent_at || horaAgora();
+      // Sobe pro topo
+      const idx = LEADS.indexOf(lead);
+      if(idx > 0){ LEADS.splice(idx,1); LEADS.unshift(lead); }
+      // Badge não lida
+      if(msg.direction === 'in' && msg.lead_id !== activeId){
+        unreadIds.add(msg.lead_id);
+        showNotif(lead);
+      }
+      if(msg.lead_id === activeId){ renderChat(); }
+      renderClist();
     }
-    // Atualiza chat se este lead estiver aberto
-    if(msg.lead_id === activeId){ renderChat(); }
-    renderClist();
   } else {
-    // Lead novo — recarrega tudo
     loadLeads();
   }
 }
@@ -1345,109 +1274,54 @@ function processNewMsg(msg){
 async function pollNewMessages(){
   if(!SB) return;
   try {
-    // Busca mensagens das últimas 3 min na tabela principal
-    const since = new Date(Date.now() - 180000).toISOString();
-    const {data:msgs} = await SB
-      .from('messages')
-      .select('*')
-      .gte('created_at', since)
-      .order('created_at', {ascending: true});
-
-    if(msgs && msgs.length){
-      msgs.forEach(msg => {
-        if(!_seenMsgIds.has(msg.id)) processNewMsg(msg);
-      });
+    let query = SB.from('messages').select('*').order('created_at',{ascending:false}).limit(20);
+    if(_lastMsgId){
+      query = SB.from('messages').select('*').order('created_at',{ascending:false}).limit(5);
     }
+    const {data:msgs} = await query;
+    if(!msgs || !msgs.length) return;
 
-    // Também busca via tabelas particionadas por data (realtime schema)
-    // que a Evolution API pode usar
-    const hoje = new Date().toISOString().slice(0,10).replace(/-/g,'_');
-    const ontem = new Date(Date.now()-86400000).toISOString().slice(0,10).replace(/-/g,'_');
-    for(const dia of [hoje, ontem]){
-      try{
-        const {data:part} = await SB
-          .from(`messages_${dia}`)
-          .select('*')
-          .gte('created_at', since)
-          .order('created_at', {ascending: true});
-        if(part && part.length){
-          part.forEach(msg => {
-            if(!_seenMsgIds.has(msg.id)) processNewMsg(msg);
-          });
-        }
-      }catch(e){ /* tabela pode não existir */ }
+    // Pega o ID mais recente
+    const newest = msgs[0];
+    if(!_lastMsgId){
+      _lastMsgId = newest.id;
+      return; // primeira vez só marca posição
     }
-  } catch(e){ console.warn('polling err:', e); }
+    if(newest.id === _lastMsgId) return; // nada novo
+
+    // Processa msgs novas
+    const novas = msgs.filter(m => m.id !== _lastMsgId && new Date(m.created_at) > new Date(Date.now() - 30000));
+    novas.reverse().forEach(msg => processNewMsg(msg));
+    _lastMsgId = newest.id;
+  } catch(e){ console.log('polling err:', e); }
 }
 
 function startRealtime(){
   if(!SB) return;
 
-  // Marca IDs das mensagens já carregadas para não reprocessar
-  LEADS.forEach(l => (l.msgs||[]).forEach(m => {
-    // mensagens do load inicial não têm id salvo, então controlamos pelo created_at
-  }));
-
-  // Primeiro polling para marcar baseline (sem processar)
-  const since72h = new Date(Date.now() - 259200000).toISOString();
-  SB.from('messages')
-    .select('id')
-    .gte('created_at', since72h)
-    .order('created_at', {ascending: false})
-    .limit(200)
-    .then(({data}) => {
-      if(data) data.forEach(m => _seenMsgIds.add(m.id));
-      // Também marca partições dos últimos 3 dias
-      [0,1,2].forEach(offset => {
-        const dia = new Date(Date.now()-offset*86400000).toISOString().slice(0,10).replace(/-/g,'_');
-        SB.from(`messages_${dia}`).select('id').gte('created_at', since72h)
-          .then(({data:d}) => { if(d) d.forEach(m => _seenMsgIds.add(m.id)); })
-          .catch(()=>{});
-      });
-      console.log('Baseline marcado:', _seenMsgIds.size, 'msgs');
-    });
-
-  // Canal Realtime — mensagens novas (tabela principal)
-  SB.channel('msgs-v3')
+  // Canal de mensagens via Realtime
+  const chMsgs = SB.channel('msgs-realtime-v2')
     .on('postgres_changes',{
       event:'INSERT', schema:'public', table:'messages'
     }, payload => {
-      console.log('📩 Realtime public.messages:', payload.new?.direction, payload.new?.content?.slice(0,30));
+      console.log('📩 Realtime msg:', payload.new?.direction, payload.new?.content?.slice(0,20));
       processNewMsg(payload.new);
     })
-    .subscribe(status => {
-      console.log('Realtime status:', status);
-      if(status === 'SUBSCRIBED'){
-        setStatus('ok','✅ Supabase + Realtime ativos');
-        setTimeout(()=>document.getElementById('status-bar').classList.add('hidden'),3000);
-      }
+    .subscribe((status) => {
+      console.log('Realtime msgs status:', status);
     });
 
-  // Canal Realtime — tabelas particionadas por data (realtime schema)
-  // A Evolution API pode gravar em messages_YYYY_MM_DD
-  const _hoje = new Date().toISOString().slice(0,10).replace(/-/g,'_');
-  const _ontem = new Date(Date.now()-86400000).toISOString().slice(0,10).replace(/-/g,'_');
-  [`messages_${_hoje}`, `messages_${_ontem}`].forEach(tbl => {
-    SB.channel(`rt-${tbl}`)
-      .on('postgres_changes',{
-        event:'INSERT', schema:'realtime', table: tbl
-      }, payload => {
-        console.log(`📩 Realtime realtime.${tbl}:`, payload.new?.direction, payload.new?.content?.slice(0,30));
-        processNewMsg(payload.new);
-      })
-      .subscribe();
-  });
-
-  // Canal Realtime — leads novos
-  SB.channel('leads-v3')
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'leads'}, payload => {
+  // Canal de novos leads
+  SB.channel('leads-realtime-v2')
+    .on('postgres_changes',{
+      event:'INSERT', schema:'public', table:'leads'
+    }, payload => {
       const l = payload.new;
       if(!LEADS.find(x=>x.id===l.id)){
         LEADS.unshift({
           id:l.id, name:l.name, phone:l.phone||'', temp:l.temp||'frio',
           tags:Array.isArray(l.tags)?l.tags:[], note:l.note||'',
-          last:'agora', last_msg_at:l.created_at||new Date().toISOString(),
-          atend_status:'atendimento', msgs:[]
+          last:'agora', last_msg_at:l.created_at||new Date().toISOString(), msgs:[]
         });
         renderClist();
         toast('📲 Novo lead: '+l.name);
@@ -1455,24 +1329,26 @@ function startRealtime(){
     })
     .subscribe();
 
-  // Canal Realtime — updates de leads
-  SB.channel('leads-update-v3')
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'leads'}, payload => {
+  // Canal de update de leads
+  SB.channel('leads-update-v2')
+    .on('postgres_changes',{
+      event:'UPDATE', schema:'public', table:'leads'
+    }, payload => {
       const l = payload.new;
       const lead = gl(l.id);
       if(lead){
         lead.temp = l.temp||lead.temp;
         lead.note = l.note||lead.note;
         lead.tags = Array.isArray(l.tags)?l.tags:lead.tags;
-        lead.atend_status = l.atend_status||lead.atend_status;
         renderClist();
         if(l.id===activeId) renderInfo();
       }
     })
     .subscribe();
 
-  // POLLING a cada 3s como garantia extra
-  _pollingInterval = setInterval(pollNewMessages, 3000);
+  // POLLING DE FALLBACK — verifica a cada 8s caso Realtime falhe
+  _pollingInterval = setInterval(pollNewMessages, 2000);
+  pollNewMessages(); // primeira chamada imediata para marcar posição
 
   console.log('✅ Realtime + Polling ativo');
 }
@@ -1907,64 +1783,6 @@ async function mudarStatusLead(lid, key){
   if(SB) await SB.from('leads').update({atend_status: key}).eq('id', lid);
   renderStatusView();
   toast('Status atualizado!');
-}
-
-// ══════════════ DIAGNÓSTICO ══════════════
-async function runDiag(){
-  if(!SB){ toast('Supabase não conectado','err'); return; }
-  toast('🔍 Rodando diagnóstico...');
-  const results = [];
-
-  // 1. Conta mensagens na tabela principal
-  try{
-    const {count, error} = await SB.from('messages').select('*', {count:'exact',head:true});
-    results.push(error ? '❌ messages: '+error.message : `✅ messages (public): ${count} registros`);
-  }catch(e){ results.push('❌ messages: '+e.message); }
-
-  // 2. Verifica mensagem mais recente
-  try{
-    const {data} = await SB.from('messages').select('id,direction,content,created_at,lead_id').order('created_at',{ascending:false}).limit(3);
-    if(data && data.length){
-      results.push('📩 Última mensagem:');
-      data.forEach(m => {
-        const t = new Date(m.created_at).toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo'});
-        results.push(`  ${m.direction==='in'?'⬇':'⬆'} ${t} — ${(m.content||'').slice(0,40)}`);
-      });
-    } else {
-      results.push('⚠️ Nenhuma mensagem na tabela messages');
-    }
-  }catch(e){ results.push('❌ Erro lendo messages: '+e.message); }
-
-  // 3. Verifica tabelas particionadas dos últimos 3 dias
-  for(let i=0;i<4;i++){
-    const dia = new Date(Date.now()-i*86400000).toISOString().slice(0,10).replace(/-/g,'_');
-    const tbl = `messages_${dia}`;
-    try{
-      const {data,error} = await SB.from(tbl).select('id,direction,content,created_at').order('created_at',{ascending:false}).limit(2);
-      if(error) results.push(`⬜ ${tbl}: não existe`);
-      else results.push(`✅ ${tbl}: ${data?.length||0} msgs recentes`);
-    }catch(e){ results.push(`⬜ ${tbl}: não acessível`); }
-  }
-
-  // 4. Verifica leads
-  try{
-    const {count} = await SB.from('leads').select('*',{count:'exact',head:true});
-    results.push(`✅ leads: ${count} registros`);
-  }catch(e){ results.push('❌ leads: '+e.message); }
-
-  // 5. Realtime status
-  results.push(`📡 Msgs vistas (baseline): ${_seenMsgIds.size}`);
-
-  // Mostra resultado
-  const msg = results.join('
-');
-  console.log('=== DIAGNÓSTICO ===
-'+msg);
-  alert('=== DIAGNÓSTICO CRM ===
-
-'+msg+'
-
-(Detalhes no Console do navegador — F12)');
 }
 
 // INIT
