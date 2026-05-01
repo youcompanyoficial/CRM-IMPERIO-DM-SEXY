@@ -569,11 +569,18 @@ function horaAgora(){
 }
 
 // Tempo relativo (ex: "há 2min", "há 1h", "há 3 dias")
+function parseTS(ts){
+  if(!ts) return null;
+  // Normaliza formato do Supabase: "2026-05-01 14:06:19.353211+00" -> ISO
+  const s = String(ts).replace(' ', 'T').replace('+00', '+00:00');
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function tempoRelativo(ts){
-  if(!ts) return 'agora';
-  let d = new Date(ts);
-  if(isNaN(d.getTime())) return 'agora';
-  // Usa sempre Date.now() que é UTC, e o timestamp do banco também é UTC
+  if(!ts) return '—';
+  const d = parseTS(ts);
+  if(!d) return '—';
   const diff = Date.now() - d.getTime();
   if(diff < 0) return 'agora';
   const seg = Math.floor(diff/1000);
@@ -682,7 +689,7 @@ async function loadLeads(){
       tags: Array.isArray(l.tags)?l.tags:[],
       note: l.note||'',
       last: l.last_seen||'agora',
-      last_msg_at: lastMsg?.created_at || null, // só usa created_at de mensagem real
+      last_msg_at: lastMsg?.created_at || l.updated_at || null,
       atend_status: l.atend_status||'atendimento',
       msgs: lMsgs,
       msgsLoaded: lMsgs.length > 0
