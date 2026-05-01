@@ -662,13 +662,8 @@ async function loadLeads(){
       .filter(m=>m.lead_id===l.id)
       .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))
       .map(m=>{
-        // Sempre recalcula sent_at a partir do created_at para garantir fuso correto
+        // Mantém sent_at original — já vem correto da Edge Function
         let sent_at = m.sent_at || '';
-        if(m.created_at && !isNaN(new Date(m.created_at).getTime())){
-          sent_at = new Date(m.created_at).toLocaleTimeString('pt-BR',{
-            hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'
-          });
-        }
         return {
           direction: m.direction,
           content: m.content,
