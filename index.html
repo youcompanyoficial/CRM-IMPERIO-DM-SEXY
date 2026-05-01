@@ -784,13 +784,13 @@ function renderClist(){
   document.getElementById('clist').innerHTML = list.length===0
     ? '<div style="padding:24px;text-align:center;font-size:12px;color:var(--light)">Nenhum lead encontrado.</div>'
     : list.map(l=>{
-        const last=l.msgs&&l.msgs.length?l.msgs[l.msgs.length-1]:null;
+        const lastContent = l.last_preview || (l.msgs&&l.msgs.length ? l.msgs[l.msgs.length-1]?.content : null);
         const hasUnread = unreadIds.has(l.id) && l.id !== activeId;
         const timeLabel = l.last_msg_at ? tempoRelativo(l.last_msg_at) : '—';
         return `<div class="ci${l.id===activeId?' on':''}" onclick="selectLead('${l.id}')">
           <div class="ci-r1"><span class="ci-name" style="${hasUnread?'font-weight:800;color:var(--txt)':''}">${l.name}</span><span class="ci-time">${timeLabel}</span></div>
           <div class="ci-r2">
-            <span class="ci-prev" style="${hasUnread?'font-weight:600;color:var(--txt)':''}">${last?last.content:'Sem mensagens'}</span>
+            <span class="ci-prev" style="${hasUnread?'font-weight:600;color:var(--txt)':''}">${lastContent||'Sem mensagens'}</span>
             ${hasUnread?'<span class="ci-bdg">!</span>':''}
             <span class="pill ${TMP[l.temp]?.p||'pf'}" style="font-size:9px;padding:2px 7px">${TMP[l.temp]?.lbl}</span>
           </div>
