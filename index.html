@@ -501,6 +501,11 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 const SB_URL = 'https://yhqqebyefqnieptfkohl.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlocXFlYnllZnFuaWVwdGZrb2hsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMTc0ODYsImV4cCI6MjA5Mjc5MzQ4Nn0.CsrEWw_G8aGCqIXJTC57vUWgwCzHKio5OQ3tPUyaG4M';
 
+// ══ ALLOWED ORIGINS FIX ══
+// O Supabase bloqueia origens não cadastradas.
+// Este bloco instrui a adicionar o domínio nas configurações.
+window._sbOriginOk = false;
+
 
 // ══════════════ EVOLUTION API ══════════════
 const EVO_URL = 'https://evolution-api-production-3ffb.up.railway.app';
@@ -673,8 +678,12 @@ async function initDB(){
     console.error('Supabase erro:', detail);
 
     let friendlyMsg = '❌ ' + detail;
-    if(detail.includes('Failed to fetch') || detail.includes('NetworkError') || detail.includes('fetch')){
-      friendlyMsg = '❌ CORS/Rede: rode o SQL de permissões no Supabase';
+    if(detail.includes('allowlist') || detail.includes('Host not in')){
+      friendlyMsg = '❌ Domínio não autorizado — adicione seu domínio no Supabase (Authentication → URL Configuration)';
+      showAllowlistFix();
+      return;
+    } else if(detail.includes('Failed to fetch') || detail.includes('NetworkError') || detail.includes('fetch')){
+      friendlyMsg = '❌ CORS/Rede: adicione o domínio no Supabase → Authentication → URL Configuration';
     } else if(detail.includes('permission') || detail.includes('policy') || detail.includes('RLS') || detail.includes('row-level')){
       friendlyMsg = '❌ RLS bloqueando — rode o SQL de permissões';
     } else if(detail.includes('does not exist') || detail.includes('relation')){
@@ -720,6 +729,32 @@ grant usage on schema public to authenticated;`;
     <div style="display:flex;gap:8px;margin-top:12px">
       <button onclick="navigator.clipboard.writeText(document.getElementById('sql-ta').value).then(()=>toast('✅ SQL copiado!'))" style="flex:1;height:36px;border-radius:20px;border:none;background:linear-gradient(135deg,#7C3AED,#8B5CF6);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📋 Copiar SQL</button>
       <button onclick="document.getElementById('sql-fix-box').remove();initDB();" style="flex:1;height:36px;border-radius:20px;border:1.5px solid #7C3AED;background:transparent;color:#7C3AED;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔄 Tentar novamente</button>
+    </div>
+  `;
+  document.body.appendChild(box);
+}
+
+function showAllowlistFix(){
+  if(document.getElementById('allowlist-box')) return;
+  const origin = window.location.origin;
+  const box = document.createElement('div');
+  box.id = 'allowlist-box';
+  box.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.25);z-index:999;max-width:500px;width:90%;font-family:inherit';
+  box.innerHTML = `
+    <div style="font-size:15px;font-weight:800;color:#1E1B4B;margin-bottom:6px">🔐 Domínio não autorizado no Supabase</div>
+    <div style="font-size:12px;color:#6B7280;margin-bottom:14px;line-height:1.6">
+      O Supabase está bloqueando a conexão do seu domínio.<br>
+      Siga os passos abaixo para liberar:
+    </div>
+    <div style="background:#F5F3FF;border-radius:10px;padding:12px;font-size:12px;color:#1E1B4B;line-height:1.8;margin-bottom:14px">
+      <strong>1.</strong> Acesse <a href="https://supabase.com/dashboard/project/yhqqebyefqnieptfkohl/auth/url-configuration" target="_blank" style="color:#7C3AED;font-weight:700">Supabase → Authentication → URL Configuration</a><br>
+      <strong>2.</strong> Em <strong>"Redirect URLs"</strong> clique em <strong>"Add URL"</strong><br>
+      <strong>3.</strong> Adicione: <code style="background:#EDE9FE;padding:2px 6px;border-radius:4px;font-weight:700">${origin}</code><br>
+      <strong>4.</strong> Clique <strong>Save</strong> e depois clique em Tentar novamente abaixo
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="window.open('https://supabase.com/dashboard/project/yhqqebyefqnieptfkohl/auth/url-configuration','_blank')" style="flex:1;height:36px;border-radius:20px;border:none;background:linear-gradient(135deg,#7C3AED,#8B5CF6);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔗 Abrir Supabase</button>
+      <button onclick="document.getElementById('allowlist-box').remove();initDB();" style="flex:1;height:36px;border-radius:20px;border:1.5px solid #7C3AED;background:transparent;color:#7C3AED;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔄 Tentar novamente</button>
     </div>
   `;
   document.body.appendChild(box);
